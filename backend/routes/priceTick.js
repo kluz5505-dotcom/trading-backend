@@ -4,12 +4,21 @@ import { createClient } from "@supabase/supabase-js";
 
 const router = express.Router();
 
+// TEST ROUTE (must work first)
+router.get("/test", (req, res) => {
+  res.json({
+    ok: true,
+    message: "priceTick test route working",
+  });
+});
+
 const getSupabaseClient = () => {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
-    throw new Error("Supabase service credentials are required in backend env");
+    console.warn("⚠️ Supabase credentials not found in environment");
+    return null;
   }
 
   return createClient(url, serviceRoleKey);
@@ -43,19 +52,22 @@ router.get("/", async (req, res) => {
           throw new Error("Invalid Binance response for " + symbol);
         }
 
-        const { error: updateError } = await supabase
-          .from("markets")
-          .update({
-            price,
-            change_24h: change,
-            volume_24h: volume
-          })
-          .eq("symbol", symbol);
+        // Only update Supabase if client is available
+        if (supabase) {
+          const { error: updateError } = await supabase
+            .from("markets")
+            .update({
+              price,
+              change_24h: change,
+              volume_24h: volume
+            })
+            .eq("symbol", symbol);
 
-        if (updateError) {
-          console.error("Supabase update failed for", symbol, updateError);
-          results.push({ symbol, price, error: updateError.message });
-          continue;
+          if (updateError) {
+            console.error("Supabase update failed for", symbol, updateError);
+            results.push({ symbol, price, error: updateError.message });
+            continue;
+          }
         }
 
         results.push({ symbol, price, updated: true });
