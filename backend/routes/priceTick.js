@@ -4,10 +4,16 @@ import { createClient } from "@supabase/supabase-js";
 
 const router = express.Router();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+const getSupabaseClient = () => {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Supabase service credentials are required in backend env");
+  }
+
+  return createClient(url, serviceRoleKey);
+};
 
 // Binance symbols
 const symbols = [
@@ -20,39 +26,56 @@ const symbols = [
 
 router.get("/", async (req, res) => {
   try {
+    const supabase = getSupabaseClient();
     const results = [];
 
     for (const symbol of symbols) {
-      const { data } = await axios.get(
-        `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`
-      );
+      try {
+        const { data } = await axios.get(
+          `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`
+        );
 
-      const price = parseFloat(data.lastPrice);
-      const change = parseFloat(data.priceChangePercent);
-      const volume = parseFloat(data.volume);
+        const price = parseFloat(data.lastPrice);
+        const change = parseFloat(data.priceChangePercent);
+        const volume = parseFloat(data.volume);
 
-      // update Supabase market table
-      await supabase
-        .from("markets")
-        .update({
-          price,
-          change_24h: change,
-          volume_24h: volume
-        })
-        .eq("symbol", symbol);
+        if (Number.isNaN(price) || Number.isNaN(change) || Number.isNaN(volume)) {
+          throw new Error("Invalid Binance response for " + symbol);
+        }
 
-      results.push({ symbol, price });
+        const { error: updateError } = await supabase
+          .from("markets")
+          .update({
+            price,
+            change_24h: change,
+            volume_24h: volume
+          })
+          .eq("symbol", symbol);
+
+        if (updateError) {
+          console.error("Supabase update failed for", symbol, updateError);
+          results.push({ symbol, price, error: updateError.message });
+          continue;
+        }
+
+        results.push({ symbol, price, updated: true });
+      } catch (symbolErr) {
+        console.error("priceTick error for", symbol, symbolErr);
+        results.push({ symbol, error: symbolErr?.message ?? "unknown error" });
+      }
     }
 
-    res.json({
-      success: true,
-      updated: results.length,
+    const updatedCount = results.filter((entry) => entry.updated).length;
+    const success = updatedCount > 0;
+
+    return res.json({
+      success,
+      updated: updatedCount,
       data: results
     });
-
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "price tick failed" });
+    return res.status(500).json({ success: false, error: "price tick failed", details: err?.message });
   }
 });
 
