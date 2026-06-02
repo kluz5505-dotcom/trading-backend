@@ -1,3 +1,5 @@
+console.log("🔥 SERVER STARTED FILE:", __filename);
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -5,6 +7,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import priceTick from "./routes/priceTick.js";
+
+console.log("🔥 ROUTES LOADING - priceTick should register now");
 
 const app = express();
 
