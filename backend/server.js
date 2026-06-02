@@ -4,7 +4,11 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+console.log("SERVER LOADED");
+
 import priceTick from "./routes/priceTick.js";
+
+console.log("PRICE TICK ROUTE REGISTERED");
 
 const app = express();
 
@@ -15,16 +19,10 @@ app.get("/", (req, res) => {
   res.json({ status: "backend running" });
 });
 
-// MUST BE EXACT MOUNT PATH
 app.use("/api/public/price-tick", priceTick);
-
-// DEBUG ROUTE
-app.get("/test", (req, res) => {
-  res.json({ ok: true });
-});
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log("Backend running on port", PORT);
+  console.log("Server running on port", PORT);
 });

@@ -4,25 +4,22 @@ import { createClient } from "@supabase/supabase-js";
 
 const router = express.Router();
 
-// TEST ROUTE (must work first)
-router.get("/test", (req, res) => {
-  res.json({
-    ok: true,
-    message: "priceTick test route working",
-  });
-});
-
 const getSupabaseClient = () => {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
-    console.warn("⚠️ Supabase credentials not found in environment");
+    console.warn("⚠️ Supabase credentials not found");
     return null;
   }
 
   return createClient(url, serviceRoleKey);
 };
+
+// MAIN PRICE TICK ROUTE
+router.get("/", (req, res) => {
+  res.json({ ok: true, message: "priceTick route working" });
+});
 
 // Binance symbols
 const symbols = [
@@ -33,7 +30,8 @@ const symbols = [
   "XRPUSDT"
 ];
 
-router.get("/", async (req, res) => {
+// EXTENDED PRICE TICK WITH BINANCE DATA
+router.get("/binance", async (req, res) => {
   try {
     const supabase = getSupabaseClient();
     const results = [];
