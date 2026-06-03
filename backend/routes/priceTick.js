@@ -16,12 +16,7 @@ const getSupabaseClient = () => {
   return createClient(url, serviceRoleKey);
 };
 
-// MAIN PRICE TICK ROUTE
-router.get("/", (req, res) => {
-  res.json({ ok: true, message: "priceTick route working" });
-});
-
-// Binance symbols
+// Binance symbols to update
 const symbols = [
   "BTCUSDT",
   "ETHUSDT",
@@ -30,12 +25,16 @@ const symbols = [
   "XRPUSDT"
 ];
 
-// EXTENDED PRICE TICK WITH BINANCE DATA
-router.get("/binance", async (req, res) => {
+// MAIN PRICE TICK ROUTE
+router.get("/", async (req, res) => {
   try {
     const supabase = getSupabaseClient();
-    const results = [];
 
+    if (!supabase) {
+      return res.status(500).json({ ok: false, error: "Supabase client unavailable" });
+    }
+
+    // Fetch live prices from Binance and update markets table
     for (const symbol of symbols) {
       try {
         const { data } = await axios.get(
@@ -50,42 +49,41 @@ router.get("/binance", async (req, res) => {
           throw new Error("Invalid Binance response for " + symbol);
         }
 
-        // Only update Supabase if client is available
-        if (supabase) {
-          const { error: updateError } = await supabase
-            .from("markets")
-            .update({
-              price,
-              change_24h: change,
-              volume_24h: volume
-            })
-            .eq("symbol", symbol);
+        const { error: updateError } = await supabase
+          .from("markets")
+          .update({
+            price,
+            change_24h: change,
+            volume_24h: volume
+          })
+          .eq("symbol", symbol);
 
-          if (updateError) {
-            console.error("Supabase update failed for", symbol, updateError);
-            results.push({ symbol, price, error: updateError.message });
-            continue;
-          }
+        if (updateError) {
+          console.error("Supabase update failed for", symbol, updateError);
         }
-
-        results.push({ symbol, price, updated: true });
       } catch (symbolErr) {
         console.error("priceTick error for", symbol, symbolErr);
-        results.push({ symbol, error: symbolErr?.message ?? "unknown error" });
       }
     }
 
-    const updatedCount = results.filter((entry) => entry.updated).length;
-    const success = updatedCount > 0;
+    // Fetch all markets and return full dataset
+    const { data: markets, error: fetchError } = await supabase
+      .from("markets")
+      .select("*");
+
+    if (fetchError) {
+      console.error("Failed to fetch markets", fetchError);
+      return res.status(500).json({ ok: false, error: "Failed to fetch markets", details: fetchError.message });
+    }
 
     return res.json({
-      success,
-      updated: updatedCount,
-      data: results
+      ok: true,
+      count: markets.length,
+      data: markets
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, error: "price tick failed", details: err?.message });
+    return res.status(500).json({ ok: false, error: "price tick failed", details: err?.message });
   }
 });
 
