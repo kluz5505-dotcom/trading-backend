@@ -1,8 +1,14 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();
+// Ensure this file always loads the .env located next to this server file,
+// even when the process is started from the repository root.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 console.log("SERVER LOADED");
 
